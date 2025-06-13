@@ -292,10 +292,11 @@
     <script>
         // ADD THIS CONFIGURATION SECTION
 const CONFIG = {
-    fetchImagesUrl: 'https://29c5-143-105-9-170.ngrok-free.app/webhook/image-sequencer-api',
-    updateSelectionsUrl: 'https://29c5-143-105-9-170.ngrok-free.app/webhook/update-image-selections',
-    currentTaskId: null
+  fetchImagesUrl: 'http://localhost:5678/webhook/image-sequencer-api',
+  updateSelectionsUrl: 'http://localhost:5678/webhook/update-image-selections',
+  currentTaskId: null
 };
+
         let availableImages = [];
         let selectedSequence = [];
         let draggedItem = null;
