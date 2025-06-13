@@ -290,6 +290,12 @@
     </div>
 
     <script>
+        // ADD THIS CONFIGURATION SECTION
+const CONFIG = {
+    fetchImagesUrl: 'https://your-actual-ngrok-url.ngrok-free.app/webhook/image-sequencer-api',
+    updateSelectionsUrl: 'https://your-actual-ngrok-url.ngrok-free.app/webhook/update-image-selections',
+    currentTaskId: null
+};
         let availableImages = [];
         let selectedSequence = [];
         let draggedItem = null;
