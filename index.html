@@ -255,7 +255,7 @@
         <p class="subtitle">Select images from the gallery and drag to reorder them in the sequence</p>
         
         <div class="controls">
-            <button onclick="loadSampleImages()">Load Sample Images</button>
+            <button onclick="loadImagesFromBaserow()">Load Images from Baserow</button>
             <button onclick="clearSelection()">Clear Selection</button>
             <button onclick="exportToBaserow()" id="exportBtn" disabled>Export to Baserow</button>
             <button onclick="copyJSON()">Copy JSON</button>
@@ -296,6 +296,41 @@ const CONFIG = {
     updateSelectionsUrl: 'https://92dc-143-105-9-170.ngrok-free.app/webhook/update-image-selections',
     currentTaskId: null
 };
+async function loadImagesFromBaserow() {
+    const button = event.target;
+    button.disabled = true;
+    button.textContent = 'Loading...';
+    
+    try {
+        const response = await fetch(CONFIG.fetchImagesUrl);
+        const data = await response.json();
+        
+        if (data.success) {
+            availableImages = data.images;
+            
+            // Pre-select images that were previously selected
+            selectedSequence = data.images
+                .filter(img => img.is_selected)
+                .sort((a, b) => (a.sort_order || 999) - (b.sort_order || 999));
+            
+            renderImageGrid();
+            renderSequence();
+            updateSelectionIndicators();
+            updateStats();
+            updateJSON();
+            
+            button.textContent = `Loaded ${data.count} images`;
+        } else {
+            throw new Error(data.message || 'Failed to load images');
+        }
+    } catch (error) {
+        console.error('Error loading from Baserow:', error);
+        alert('Failed to load images. Please check your connection and try again.');
+        button.textContent = 'Load Images from Baserow';
+    } finally {
+        button.disabled = false;
+    }
+}
 
         let availableImages = [];
         let selectedSequence = [];
