@@ -302,7 +302,11 @@ async function loadImagesFromBaserow() {
     button.textContent = 'Loading...';
     
     try {
-        const response = await fetch(CONFIG.fetchImagesUrl);
+        const response = await fetch(CONFIG.fetchImagesUrl, {
+    headers: {
+        'ngrok-skip-browser-warning': 'true'
+    }
+});
         const data = await response.json();
         
         if (data.success) {
