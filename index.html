@@ -262,12 +262,57 @@
             position: relative;
             border-radius: 8px;
             overflow: hidden;
+            cursor: move;
+            transition: transform 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+        .selected-item:hover {
+            transform: scale(1.05);
+            border-color: #667eea;
+        }
+
+        .selected-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
         }
 
         .selected-item img {
             width: 100%;
             height: 150px;
             object-fit: cover;
+        }
+
+        .drag-handle {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: move;
+        }
+
+        .order-number {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            background: #667eea;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
         }
 
         .remove-btn {
@@ -355,9 +400,10 @@
                             :class="{ selected: isSelected(image.id) }"
                         >
                             <img 
-                                :src="image.image_preview || image.image_url" 
+                                :src="getImageUrl(image)" 
                                 :alt="`Generated image ${image.slot_number}`"
                                 loading="lazy"
+                                @error="handleImageError($event, image)"
                             />
                             <div class="image-overlay">
                                 {{ isSelected(image.id) ? 'Selected' : 'Click to select' }}
@@ -371,11 +417,21 @@
             </div>
 
             <div v-if="selectedImages.length > 0" class="selected-images">
-                <h3 class="selected-title">Selected Images ({{ selectedImages.length }})</h3>
-                <div class="selected-grid">
-                    <div v-for="image in selectedImages" :key="image.id" class="selected-item">
-                        <img :src="image.image_preview || image.image_url" :alt="'Selected image'" />
+                <h3 class="selected-title">Selected Images ({{ selectedImages.length }}) - Drag to Reorder</h3>
+                <div class="selected-grid" 
+                     @dragover.prevent 
+                     @drop="handleDrop">
+                    <div v-for="(image, index) in selectedImages" 
+                         :key="image.id" 
+                         class="selected-item"
+                         draggable="true"
+                         @dragstart="handleDragStart($event, index)"
+                         @dragover.prevent
+                         @drop.stop="handleDropOnItem($event, index)">
+                        <img :src="getImageUrl(image)" :alt="'Selected image'" />
                         <button @click="removeSelection(image.id)" class="remove-btn">×</button>
+                        <div class="drag-handle">⋮⋮</div>
+                        <div class="order-number">{{ index + 1 }}</div>
                     </div>
                 </div>
             </div>
@@ -392,6 +448,7 @@
                     selectedImages: [],
                     loading: false,
                     error: null,
+                    draggedIndex: null,
                     // Your N8n production webhook URL
                     webhookUrl: 'http://137.184.39.211:5678/webhook/image-sequencer-api'
                 }
@@ -522,7 +579,64 @@
                     this.selectedImages = [];
                 },
                 
-                exportSelection() {
+                getImageUrl(image) {
+                    // Try multiple possible URL properties in order of preference
+                    return image.image_preview || 
+                           image.image_url || 
+                           image.direct_url || 
+                           image.url ||
+                           'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em">Image not found</text></svg>';
+                },
+                
+                handleImageError(event, image) {
+                    console.error('Image failed to load:', image);
+                    console.log('Attempted URL:', event.target.src);
+                    console.log('Available image properties:', Object.keys(image));
+                    
+                    // Try alternative URL if available
+                    if (image.direct_url && event.target.src !== image.direct_url) {
+                        event.target.src = image.direct_url;
+                    } else if (image.image_url && event.target.src !== image.image_url) {
+                        event.target.src = image.image_url;
+                    } else {
+                        // Show placeholder
+                        event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em">Failed to load</text></svg>';
+                    }
+                },
+                
+                handleDragStart(event, index) {
+                    this.draggedIndex = index;
+                    event.target.classList.add('dragging');
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', index);
+                },
+                
+                handleDrop(event) {
+                    event.preventDefault();
+                    // Remove dragging class from all items
+                    document.querySelectorAll('.selected-item').forEach(item => {
+                        item.classList.remove('dragging');
+                    });
+                },
+                
+                handleDropOnItem(event, dropIndex) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    
+                    if (this.draggedIndex !== null && this.draggedIndex !== dropIndex) {
+                        // Reorder the selected images
+                        const draggedItem = this.selectedImages[this.draggedIndex];
+                        this.selectedImages.splice(this.draggedIndex, 1);
+                        this.selectedImages.splice(dropIndex, 0, draggedItem);
+                    }
+                    
+                    this.draggedIndex = null;
+                    
+                    // Remove dragging class
+                    document.querySelectorAll('.selected-item').forEach(item => {
+                        item.classList.remove('dragging');
+                    });
+                },
                     const exportData = {
                         selected_images: this.selectedImages.map(img => ({
                             id: img.id,
