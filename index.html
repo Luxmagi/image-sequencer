@@ -462,7 +462,7 @@
             
             grid.innerHTML = selectedSequence.map((img, index) => `
                 <div class="sequence-item" draggable="true" data-index="${index}">
-                    <img src="${img.image_preview || img.image_url}" alt="Image ${img.id}" onerror="this.src='https://via.placeholder.com/400x300?text=Image+${img.id}'">
+                    <img src="${img.image_preview || img.image_url || img.direct_url}" alt="Image ${img.id}" onerror="this.onerror=null; this.src='${img.direct_url || img.image_url}';">
                     <div class="sequence-number">${index + 1}</div>
                     <div class="remove-btn" onclick="removeFromSequence(${index})">×</div>
                 </div>
