@@ -118,6 +118,18 @@
             font-size: 1.1rem;
         }
 
+        .debug-info {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
         .image-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -171,6 +183,7 @@
             overflow: hidden;
             transition: all 0.3s ease;
             aspect-ratio: 1;
+            background: #f0f0f0;
         }
 
         .image-item:hover {
@@ -283,6 +296,23 @@
             object-fit: cover;
         }
 
+        .remove-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(244, 67, 54, 0.9);
+            color: white;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
         .drag-handle {
             position: absolute;
             top: 4px;
@@ -315,23 +345,6 @@
             font-weight: bold;
         }
 
-        .remove-btn {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            background: rgba(244, 67, 54, 0.9);
-            color: white;
-            border: none;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-        }
-
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -362,13 +375,17 @@
 
             <div class="controls">
                 <button @click="fetchImages" :disabled="loading" class="btn">
-                    {{ loading ? 'Loading...' : 'Fetch Images' }}
+                    <span v-if="loading">Loading...</span>
+                    <span v-else>Fetch Images</span>
                 </button>
                 <button @click="clearSelection" :disabled="selectedImages.length === 0" class="btn secondary">
                     Clear Selection ({{ selectedImages.length }})
                 </button>
                 <button @click="exportSelection" :disabled="selectedImages.length === 0" class="btn secondary">
                     Export Selected
+                </button>
+                <button @click="showDebug = !showDebug" class="btn secondary">
+                    {{ showDebug ? 'Hide' : 'Show' }} Debug
                 </button>
             </div>
 
@@ -379,6 +396,11 @@
 
             <div v-if="error" class="error">
                 {{ error }}
+            </div>
+
+            <div v-if="showDebug && debugData" class="debug-info">
+                <strong>Debug Data:</strong><br>
+                {{ debugData }}
             </div>
 
             <div v-if="images.length > 0" class="stats">
@@ -401,7 +423,7 @@
                         >
                             <img 
                                 :src="getImageUrl(image)" 
-                                :alt="`Generated image ${image.slot_number}`"
+                                :alt="`Generated image ${image.image_number || 'unknown'}`"
                                 loading="lazy"
                                 @error="handleImageError($event, image)"
                             />
@@ -449,16 +471,19 @@
                     loading: false,
                     error: null,
                     draggedIndex: null,
-                    // Your N8n production webhook URL
+                    showDebug: false,
+                    debugData: null,
                     webhookUrl: 'http://137.184.39.211:5678/webhook/image-sequencer-api'
                 }
             },
+            
             computed: {
                 imageRows() {
-                    // Group images by row_id (4-image sets)
+                    if (!this.images || this.images.length === 0) return [];
+                    
                     const grouped = {};
-                    this.images.forEach(image => {
-                        const rowId = image.row_id || 'unknown';
+                    this.images.forEach((image, index) => {
+                        const rowId = image.row_id || image.id || `row_${Math.floor(index / 4) + 1}`;
                         if (!grouped[rowId]) {
                             grouped[rowId] = {
                                 id: rowId,
@@ -469,18 +494,20 @@
                         grouped[rowId].images.push(image);
                     });
                     
-                    // Sort images within each row by slot_number
+                    // Sort images within each row
                     Object.values(grouped).forEach(row => {
-                        row.images.sort((a, b) => (a.slot_number || 0) - (b.slot_number || 0));
+                        row.images.sort((a, b) => (a.image_number || a.slot_number || 0) - (b.image_number || b.slot_number || 0));
                     });
                     
-                    return Object.values(grouped).sort((a, b) => a.id - b.id);
+                    return Object.values(grouped);
                 }
             },
+            
             methods: {
                 async fetchImages() {
                     this.loading = true;
                     this.error = null;
+                    this.debugData = null;
                     
                     try {
                         console.log('Fetching from:', this.webhookUrl);
@@ -501,9 +528,7 @@
                                 
                                 const response = await fetch(url, {
                                     method: 'GET',
-                                    headers: {
-                                        'Accept': 'application/json',
-                                    }
+                                    headers: { 'Accept': 'application/json' }
                                 });
                                 
                                 if (!response.ok) {
@@ -518,23 +543,30 @@
                                 }
                                 
                                 console.log('Received data:', data);
+                                this.debugData = JSON.stringify(data, null, 2);
                                 
                                 // Handle both array response and object with images property
                                 this.images = Array.isArray(data) ? data : (data.images || []);
                                 
+                                // Log the structure to help debug image URLs
+                                if (this.images.length > 0) {
+                                    console.log('First image structure:', this.images[0]);
+                                    console.log('Available properties:', Object.keys(this.images[0]));
+                                }
+                                
                                 if (this.images.length === 0) {
                                     this.error = 'No images found in the response';
                                 } else {
-                                    this.error = null; // Clear any previous errors
+                                    this.error = null;
                                 }
                                 return; // Success, exit the loop
                                 
                             } catch (proxyError) {
                                 console.error(`Proxy attempt ${i + 1} failed:`, proxyError);
                                 if (i === corsProxies.length - 1) {
-                                    throw proxyError; // Last attempt failed
+                                    throw proxyError;
                                 }
-                                continue; // Try next proxy
+                                continue;
                             }
                         }
                         
@@ -542,14 +574,43 @@
                         console.error('All fetch attempts failed:', err);
                         
                         if (err.message.includes('403')) {
-                            this.error = 'HTTP 403 Forbidden: Your N8n workflow might not be active, or there could be authentication/permission issues. Please check that your workflow is running and the webhook is accessible.';
+                            this.error = 'HTTP 403 Forbidden: Your N8n workflow might not be active, or there could be authentication/permission issues.';
                         } else if (err.message.includes('404')) {
-                            this.error = 'HTTP 404 Not Found: The webhook URL might be incorrect. Please verify your N8n webhook path.';
+                            this.error = 'HTTP 404 Not Found: The webhook URL might be incorrect.';
                         } else {
                             this.error = `Failed to fetch images: ${err.message}`;
                         }
                     } finally {
                         this.loading = false;
+                    }
+                },
+                
+                getImageUrl(image) {
+                    console.log('Getting URL for image:', image);
+                    
+                    // Try multiple possible URL properties
+                    const url = image.image_preview || 
+                               image.image_url || 
+                               image.direct_url || 
+                               image.url;
+                    
+                    console.log('Selected URL:', url);
+                    
+                    return url || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23666">No Image</text></svg>';
+                },
+                
+                handleImageError(event, image) {
+                    console.error('Image failed to load:', image);
+                    console.log('Attempted URL:', event.target.src);
+                    
+                    // Try alternative URL if available
+                    if (image.direct_url && event.target.src !== image.direct_url) {
+                        event.target.src = image.direct_url;
+                    } else if (image.image_url && event.target.src !== image.image_url) {
+                        event.target.src = image.image_url;
+                    } else {
+                        // Show placeholder
+                        event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23666">Failed to load</text></svg>';
                     }
                 },
                 
@@ -577,37 +638,6 @@
                     this.selectedImages = [];
                 },
                 
-                getImageUrl(image) {
-                    // Debug logging
-                    console.log('Getting URL for image:', image);
-                    
-                    // Try multiple possible URL properties in order of preference
-                    const url = image.image_preview || 
-                               image.image_url || 
-                               image.direct_url || 
-                               image.url;
-                    
-                    console.log('Selected URL:', url);
-                    
-                    return url || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em">Image not found</text></svg>';
-                },
-                
-                handleImageError(event, image) {
-                    console.error('Image failed to load:', image);
-                    console.log('Attempted URL:', event.target.src);
-                    console.log('Available image properties:', Object.keys(image));
-                    
-                    // Try alternative URL if available
-                    if (image.direct_url && event.target.src !== image.direct_url) {
-                        event.target.src = image.direct_url;
-                    } else if (image.image_url && event.target.src !== image.image_url) {
-                        event.target.src = image.image_url;
-                    } else {
-                        // Show placeholder
-                        event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em">Failed to load</text></svg>';
-                    }
-                },
-                
                 handleDragStart(event, index) {
                     this.draggedIndex = index;
                     event.target.classList.add('dragging');
@@ -617,7 +647,6 @@
                 
                 handleDrop(event) {
                     event.preventDefault();
-                    // Remove dragging class from all items
                     document.querySelectorAll('.selected-item').forEach(item => {
                         item.classList.remove('dragging');
                     });
@@ -628,26 +657,26 @@
                     event.stopPropagation();
                     
                     if (this.draggedIndex !== null && this.draggedIndex !== dropIndex) {
-                        // Reorder the selected images
                         const draggedItem = this.selectedImages[this.draggedIndex];
                         this.selectedImages.splice(this.draggedIndex, 1);
                         this.selectedImages.splice(dropIndex, 0, draggedItem);
                     }
                     
                     this.draggedIndex = null;
-                    
-                    // Remove dragging class
                     document.querySelectorAll('.selected-item').forEach(item => {
                         item.classList.remove('dragging');
                     });
                 },
+                
+                exportSelection() {
                     const exportData = {
-                        selected_images: this.selectedImages.map(img => ({
+                        selected_images: this.selectedImages.map((img, index) => ({
+                            order: index + 1,
                             id: img.id,
                             row_id: img.row_id,
-                            image_url: img.image_url,
+                            image_url: this.getImageUrl(img),
                             refined_prompt: img.refined_prompt,
-                            slot_number: img.slot_number
+                            image_number: img.image_number || img.slot_number
                         })),
                         export_timestamp: new Date().toISOString(),
                         total_selected: this.selectedImages.length
