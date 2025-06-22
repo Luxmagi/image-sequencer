@@ -392,7 +392,7 @@
                     selectedImages: [],
                     loading: false,
                     error: null,
-                    // Your N8n webhook URL
+                    // Your N8n production webhook URL
                     webhookUrl: 'http://137.184.39.211:5678/webhook/image-sequencer-api'
                 }
             },
@@ -444,8 +444,8 @@
                         const data = await response.json();
                         console.log('Received data:', data);
                         
-                        // Handle both array response and object with data property
-                        this.images = Array.isArray(data) ? data : (data.data || []);
+                        // Handle both array response and object with images property
+                        this.images = Array.isArray(data) ? data : (data.images || []);
                         
                         if (this.images.length === 0) {
                             this.error = 'No images found in the response';
