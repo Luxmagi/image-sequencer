@@ -387,6 +387,9 @@
                 <button @click="showDebug = !showDebug" class="btn secondary">
                     {{ showDebug ? 'Hide' : 'Show' }} Debug
                 </button>
+                <button @click="testImageUrls" class="btn secondary" v-if="images.length > 0">
+                    Test Image URLs
+                </button>
             </div>
 
             <div v-if="loading" class="loading">
@@ -588,29 +591,57 @@
                 getImageUrl(image) {
                     console.log('Getting URL for image:', image);
                     
-                    // Try multiple possible URL properties
-                    const url = image.image_preview || 
-                               image.image_url || 
-                               image.direct_url || 
-                               image.url;
+                    // Try multiple possible URL properties and clean them up
+                    let url = image.image_preview || 
+                             image.image_url || 
+                             image.direct_url || 
+                             image.url;
+                    
+                    // If URL is an object (Baserow format), extract the actual URL
+                    if (typeof url === 'object' && url !== null) {
+                        url = url.url || url.download_url || url.src || Object.values(url)[0];
+                    }
+                    
+                    // Clean up the URL if it's a string
+                    if (typeof url === 'string') {
+                        // Remove any extra quotes or whitespace
+                        url = url.trim().replace(/^["']|["']$/g, '');
+                    }
                     
                     console.log('Selected URL:', url);
                     
-                    return url || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23666">No Image</text></svg>';
+                    const fallbackUrl = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23e0e0e0" stroke="%23ccc"/><text x="50%" y="40%" text-anchor="middle" dy=".3em" fill="%23666" font-size="14">Image</text><text x="50%" y="60%" text-anchor="middle" dy=".3em" fill="%23666" font-size="12">Not Available</text></svg>';
+                    
+                    return url || fallbackUrl;
                 },
                 
                 handleImageError(event, image) {
                     console.error('Image failed to load:', image);
-                    console.log('Attempted URL:', event.target.src);
+                    console.log('Failed URL:', event.target.src);
+                    console.log('All available image properties:', Object.keys(image).filter(key => key.includes('image') || key.includes('url') || key.includes('preview')));
                     
-                    // Try alternative URL if available
-                    if (image.direct_url && event.target.src !== image.direct_url) {
-                        event.target.src = image.direct_url;
-                    } else if (image.image_url && event.target.src !== image.image_url) {
-                        event.target.src = image.image_url;
+                    // Try alternative URLs in sequence
+                    const alternatives = [
+                        image.direct_url,
+                        image.image_url, 
+                        image.image_preview,
+                        image.url
+                    ].filter(url => url && url !== event.target.src);
+                    
+                    // If we have alternatives, try the next one
+                    if (alternatives.length > 0) {
+                        const nextUrl = alternatives[0];
+                        console.log('Trying alternative URL:', nextUrl);
+                        
+                        // Handle object URLs (Baserow format)
+                        if (typeof nextUrl === 'object' && nextUrl !== null) {
+                            event.target.src = nextUrl.url || nextUrl.download_url || nextUrl.src || Object.values(nextUrl)[0];
+                        } else if (typeof nextUrl === 'string') {
+                            event.target.src = nextUrl.trim().replace(/^["']|["']$/g, '');
+                        }
                     } else {
-                        // Show placeholder
-                        event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23666">Failed to load</text></svg>';
+                        // No more alternatives, show a better placeholder
+                        event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f8f9fa" stroke="%23dee2e6"/><circle cx="150" cy="80" r="20" fill="%23dee2e6"/><rect x="130" y="110" width="40" height="30" fill="%23dee2e6"/><text x="150" y="160" text-anchor="middle" fill="%23666" font-size="12">Image Unavailable</text></svg>';
                     }
                 },
                 
@@ -665,6 +696,19 @@
                     this.draggedIndex = null;
                     document.querySelectorAll('.selected-item').forEach(item => {
                         item.classList.remove('dragging');
+                    });
+                },
+                
+                testImageUrls() {
+                    console.log('=== TESTING IMAGE URLS ===');
+                    this.images.forEach((image, index) => {
+                        console.log(`Image ${index + 1}:`, {
+                            id: image.id,
+                            image_preview: image.image_preview,
+                            image_url: image.image_url,
+                            direct_url: image.direct_url,
+                            finalUrl: this.getImageUrl(image)
+                        });
                     });
                 },
                 
