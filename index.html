@@ -3,637 +3,521 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Selection & Sequencing Tool</title>
+    <title>AI Image Selector</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.min.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a1a;
-            color: #fff;
-            padding: 20px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
         }
-        
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
+            padding: 2rem;
         }
-        
-        h1 {
-            margin-bottom: 10px;
-            font-size: 28px;
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
         }
-        
-        .subtitle {
-            color: #888;
-            margin-bottom: 30px;
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-        
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
         .controls {
             display: flex;
-            gap: 20px;
-            margin-bottom: 30px;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
             flex-wrap: wrap;
         }
-        
-        button {
-            background: #0066ff;
-            color: white;
+
+        .btn {
+            background: white;
+            color: #667eea;
             border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 14px;
-            transition: background 0.2s;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        
-        button:hover {
-            background: #0052cc;
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
         }
-        
-        button:disabled {
-            background: #444;
+
+        .btn:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
         }
-        
-        .section {
-            margin-bottom: 40px;
+
+        .btn.secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            backdrop-filter: blur(10px);
         }
-        
-        .section-title {
-            font-size: 18px;
-            margin-bottom: 15px;
-            color: #ccc;
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+            margin: 3rem 0;
         }
-        
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(244, 67, 54, 0.9);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            text-align: center;
+        }
+
+        .stats {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
         .image-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 40px;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
         }
-        
-        .image-card {
-            background: #2a2a2a;
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.2s;
+
+        .image-row {
+            background: white;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+
+        .image-row:hover {
+            transform: translateY(-4px);
+        }
+
+        .row-header {
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .row-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .prompt-text {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.4;
+            font-style: italic;
+        }
+
+        .images-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .image-item {
             position: relative;
+            cursor: pointer;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            aspect-ratio: 1;
         }
-        
-        .image-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+
+        .image-item:hover {
+            transform: scale(1.02);
         }
-        
-        .image-card.selected {
-            outline: 3px solid #0066ff;
-            outline-offset: -3px;
+
+        .image-item.selected {
+            ring: 4px solid #667eea;
+            box-shadow: 0 0 0 4px #667eea;
         }
-        
-        .image-card img {
+
+        .image-item img {
             width: 100%;
-            height: 150px;
+            height: 100%;
             object-fit: cover;
             display: block;
         }
-        
-        .image-info {
-            padding: 10px;
-            font-size: 12px;
-            color: #888;
+
+        .image-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            color: white;
+            font-weight: 600;
         }
-        
+
+        .image-item:hover .image-overlay {
+            opacity: 1;
+        }
+
+        .image-item.selected .image-overlay {
+            opacity: 1;
+            background: rgba(102, 126, 234, 0.9);
+        }
+
         .selection-indicator {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 8px;
+            right: 8px;
             width: 24px;
             height: 24px;
-            background: #0066ff;
             border-radius: 50%;
-            display: none;
+            background: #667eea;
+            color: white;
+            display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
             font-size: 12px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .image-item.selected .selection-indicator {
+            opacity: 1;
+        }
+
+        .selected-images {
+            margin-top: 3rem;
+            padding: 2rem;
+            background: rgba(255,255,255,0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+
+        .selected-title {
             color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            text-align: center;
         }
-        
-        .image-card.selected .selection-indicator {
-            display: flex;
+
+        .selected-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
         }
-        
-        .sequence-container {
-            background: #2a2a2a;
+
+        .selected-item {
+            position: relative;
             border-radius: 8px;
-            padding: 20px;
-            min-height: 200px;
+            overflow: hidden;
         }
-        
-        .sequence-grid {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            min-height: 150px;
-            padding: 15px;
-            background: #1a1a1a;
-            border-radius: 6px;
-            position: relative;
-        }
-        
-        .sequence-grid.drag-over {
-            background: #0066ff20;
-            border: 2px dashed #0066ff;
-        }
-        
-        .sequence-item {
-            width: 120px;
-            position: relative;
-            cursor: move;
-        }
-        
-        .sequence-item img {
+
+        .selected-item img {
             width: 100%;
-            height: 80px;
+            height: 150px;
             object-fit: cover;
-            border-radius: 4px;
         }
-        
-        .sequence-number {
-            position: absolute;
-            top: 5px;
-            left: 5px;
-            background: #0066ff;
-            color: white;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 12px;
-        }
-        
+
         .remove-btn {
             position: absolute;
-            top: 5px;
-            right: 5px;
-            background: #ff3333;
+            top: 4px;
+            right: 4px;
+            background: rgba(244, 67, 54, 0.9);
             color: white;
+            border: none;
             width: 24px;
             height: 24px;
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             cursor: pointer;
-            font-size: 16px;
-            line-height: 1;
-        }
-        
-        .remove-btn:hover {
-            background: #cc0000;
-        }
-        
-        .empty-state {
-            text-align: center;
-            color: #666;
-            padding: 40px;
-        }
-        
-        .json-output {
-            background: #1a1a1a;
-            border: 1px solid #333;
-            border-radius: 6px;
-            padding: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        .stats {
-            display: flex;
-            gap: 30px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        
-        .stat {
-            color: #888;
-        }
-        
-        .stat strong {
-            color: #fff;
-            margin-left: 5px;
-        }
-        
-        .dragging {
-            opacity: 0.5;
-        }
-        
-        .drag-placeholder {
-            width: 120px;
-            height: 80px;
-            background: #0066ff30;
-            border: 2px dashed #0066ff;
-            border-radius: 4px;
-        }
-        
-        .error-message {
-            background: #ff3333;
-            color: white;
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .image-card.error img {
-            background: #444;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 12px;
         }
 
-        .image-card.error img:after {
-            content: "Failed to load";
-            color: #888;
-            font-size: 12px;
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .image-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Image Selection & Sequencing Tool</h1>
-        <p class="subtitle">Select images from the gallery and drag to reorder them in the sequence</p>
-        
-        <div class="error-message" id="errorMessage"></div>
-        
-        <div class="controls">
-            <button onclick="loadImagesFromBaserow()">Load Images from Baserow</button>
-            <button onclick="clearSelection()">Clear Selection</button>
-            <button onclick="exportToBaserow()" id="exportBtn" disabled>Export to Baserow</button>
-            <button onclick="copyJSON()">Copy JSON</button>
-        </div>
-        
-        <div class="stats">
-            <div class="stat">Total Images:<strong id="totalCount">0</strong></div>
-            <div class="stat">Selected:<strong id="selectedCount">0</strong></div>
-            <div class="stat">Video Duration:<strong id="duration">0s</strong></div>
-        </div>
-        
-        <div class="section">
-            <h2 class="section-title">Available Images</h2>
-            <div class="image-grid" id="imageGrid">
-                <div class="empty-state">Click "Load Images from Baserow" to begin</div>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <h1>AI Image Selector</h1>
+                <p>Select your favorite AI-generated images</p>
             </div>
-        </div>
-        
-        <div class="section">
-            <h2 class="section-title">Selected Sequence</h2>
-            <div class="sequence-container">
-                <div class="sequence-grid" id="sequenceGrid">
-                    <div class="empty-state">Select images from above to build your sequence</div>
+
+            <div class="controls">
+                <button @click="fetchImages" :disabled="loading" class="btn">
+                    {{ loading ? 'Loading...' : 'Fetch Images' }}
+                </button>
+                <button @click="clearSelection" :disabled="selectedImages.length === 0" class="btn secondary">
+                    Clear Selection ({{ selectedImages.length }})
+                </button>
+                <button @click="exportSelection" :disabled="selectedImages.length === 0" class="btn secondary">
+                    Export Selected
+                </button>
+            </div>
+
+            <div v-if="loading" class="loading">
+                <div class="spinner"></div>
+                Loading images from your N8n workflow...
+            </div>
+
+            <div v-if="error" class="error">
+                {{ error }}
+            </div>
+
+            <div v-if="imageRows.length > 0" class="stats">
+                Showing {{ totalImages }} images in {{ imageRows.length }} sets
+            </div>
+
+            <div v-if="imageRows.length > 0" class="image-grid">
+                <div v-for="row in imageRows" :key="row.id" class="image-row">
+                    <div class="row-header">
+                        <div class="row-title">Set {{ row.id }}</div>
+                        <div class="prompt-text">{{ row.prompt }}</div>
+                    </div>
+                    <div class="images-container">
+                        <div 
+                            v-for="image in row.images" 
+                            :key="image.id"
+                            @click="toggleSelection(image)"
+                            class="image-item"
+                            :class="{ selected: isSelected(image.id) }"
+                        >
+                            <img 
+                                :src="image.image_preview || image.image_url" 
+                                :alt="`Generated image ${image.slot_number}`"
+                                loading="lazy"
+                            />
+                            <div class="image-overlay">
+                                {{ isSelected(image.id) ? 'Selected' : 'Click to select' }}
+                            </div>
+                            <div class="selection-indicator">
+                                ✓
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="section">
-            <h2 class="section-title">JSON Output</h2>
-            <div class="json-output" id="jsonOutput">No images selected</div>
+
+            <div v-if="selectedImages.length > 0" class="selected-images">
+                <h3 class="selected-title">Selected Images ({{ selectedImages.length }})</h3>
+                <div class="selected-grid">
+                    <div v-for="image in selectedImages" :key="image.id" class="selected-item">
+                        <img :src="image.image_preview || image.image_url" :alt="'Selected image'" />
+                        <button @click="removeSelection(image.id)" class="remove-btn">×</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Configuration - UPDATE THESE URLS TO YOUR ACTUAL N8N WEBHOOK URLS
-        const CONFIG = {
-            fetchImagesUrl: 'YOUR_N8N_WEBHOOK_URL_HERE', // Replace with your actual N8N webhook URL
-            updateSelectionsUrl: 'YOUR_UPDATE_WEBHOOK_URL_HERE', // Replace with your update webhook URL
-            currentTaskId: null
-        };
+        const { createApp } = Vue;
 
-        let availableImages = [];
-        let selectedSequence = [];
-        let draggedItem = null;
-
-        async function loadImagesFromBaserow() {
-            const button = event.target;
-            button.disabled = true;
-            button.textContent = 'Loading...';
-            hideError();
-            
-            try {
-                console.log('Fetching from:', CONFIG.fetchImagesUrl);
-                
-                const response = await fetch(CONFIG.fetchImagesUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    mode: 'cors'
-                });
-
-                console.log('Response status:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+        createApp({
+            data() {
+                return {
+                    images: [],
+                    selectedImages: [],
+                    loading: false,
+                    error: null,
+                    // Your N8n webhook URL
+                    webhookUrl: 'http://137.184.39.211:5678/webhook/image-sequencer-api'
                 }
-
-                const data = await response.json();
-                console.log('Received data:', data);
-
-                if (data && data.images && Array.isArray(data.images)) {
-                    console.log(`Found ${data.images.length} images`);
-                    availableImages = data.images;
-                    renderImageGrid();
-                    updateStats();
-                    updateJSON();
+            },
+            computed: {
+                imageRows() {
+                    // Group images by row_id (4-image sets)
+                    const grouped = {};
+                    this.images.forEach(image => {
+                        if (!grouped[image.row_id]) {
+                            grouped[image.row_id] = {
+                                id: image.row_id,
+                                prompt: image.refined_prompt,
+                                images: []
+                            };
+                        }
+                        grouped[image.row_id].images.push(image);
+                    });
                     
-                    button.textContent = `Loaded ${data.images.length} images`;
-                    setTimeout(() => {
-                        button.textContent = 'Load Images from Baserow';
-                    }, 2000);
-                } else {
-                    console.error('Data does not have images array:', data);
-                    throw new Error('Response missing images array');
+                    // Sort images within each row by slot_number
+                    Object.values(grouped).forEach(row => {
+                        row.images.sort((a, b) => a.slot_number - b.slot_number);
+                    });
+                    
+                    return Object.values(grouped).sort((a, b) => a.id - b.id);
+                },
+                totalImages() {
+                    return this.images.length;
                 }
-
-            } catch (error) {
-                console.error('Full error details:', error);
-                showError(`Failed to load images: ${error.message}`);
-                button.textContent = 'Load Images from Baserow';
-            } finally {
-                button.disabled = false;
-            }
-        }
-
-        function showError(message) {
-            const errorEl = document.getElementById('errorMessage');
-            errorEl.textContent = message;
-            errorEl.style.display = 'block';
-        }
-
-        function hideError() {
-            const errorEl = document.getElementById('errorMessage');
-            errorEl.style.display = 'none';
-        }
-        
-        function renderImageGrid() {
-            const grid = document.getElementById('imageGrid');
-            
-            if (availableImages.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No images available</div>';
-                return;
-            }
-            
-            grid.innerHTML = availableImages.map(img => {
-                // Try multiple URL options in order of preference
-                const imageUrl = img.image_url || img.image_preview || img.direct_url;
+            },
+            methods: {
+                async fetchImages() {
+                    this.loading = true;
+                    this.error = null;
+                    
+                    try {
+                        console.log('Fetching from:', this.webhookUrl);
+                        
+                        const response = await fetch(this.webhookUrl, {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'application/json',
+                            }
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        console.log('Received data:', data);
+                        
+                        // Handle both array response and object with data property
+                        this.images = Array.isArray(data) ? data : (data.data || []);
+                        
+                        if (this.images.length === 0) {
+                            this.error = 'No images found in the response';
+                        }
+                        
+                    } catch (err) {
+                        console.error('Fetch error:', err);
+                        this.error = `Failed to fetch images: ${err.message}`;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
                 
-                return `
-                    <div class="image-card" onclick="toggleImageSelection('${img.id}')" data-id="${img.id}">
-                        <img src="${imageUrl}" 
-                             alt="Image ${img.id}" 
-                             onerror="this.parentElement.classList.add('error'); console.error('Failed to load image ${img.id}:', this.src);"
-                             onload="console.log('Successfully loaded image ${img.id}');">
-                        <div class="selection-indicator"></div>
-                        <div class="image-info">
-                            <div>Image #${img.id}</div>
-                            <div>${img.refined_prompt || 'No prompt'}</div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            updateSelectionIndicators();
-        }
-        
-        function toggleImageSelection(imageId) {
-            const image = availableImages.find(img => img.id === imageId);
-            const existingIndex = selectedSequence.findIndex(item => item.id === imageId);
-            
-            if (existingIndex !== -1) {
-                selectedSequence.splice(existingIndex, 1);
-            } else {
-                selectedSequence.push({...image});
-            }
-            
-            renderSequence();
-            updateSelectionIndicators();
-            updateStats();
-            updateJSON();
-        }
-        
-        function updateSelectionIndicators() {
-            document.querySelectorAll('.image-card').forEach(card => {
-                const id = card.dataset.id;
-                const index = selectedSequence.findIndex(item => item.id === id);
-                const indicator = card.querySelector('.selection-indicator');
+                toggleSelection(image) {
+                    const index = this.selectedImages.findIndex(img => img.id === image.id);
+                    if (index > -1) {
+                        this.selectedImages.splice(index, 1);
+                    } else {
+                        this.selectedImages.push(image);
+                    }
+                },
                 
-                if (index !== -1) {
-                    card.classList.add('selected');
-                    indicator.textContent = index + 1;
-                } else {
-                    card.classList.remove('selected');
-                }
-            });
-        }
-        
-        function renderSequence() {
-            const grid = document.getElementById('sequenceGrid');
-            
-            if (selectedSequence.length === 0) {
-                grid.innerHTML = '<div class="empty-state">Select images from above to build your sequence</div>';
-                return;
-            }
-            
-            grid.innerHTML = selectedSequence.map((img, index) => {
-                const imageUrl = img.image_url || img.image_preview || img.direct_url;
-                return `
-                    <div class="sequence-item" draggable="true" data-index="${index}">
-                        <img src="${imageUrl}" alt="Image ${img.id}" 
-                             onerror="console.error('Failed to load sequence image ${img.id}');">
-                        <div class="sequence-number">${index + 1}</div>
-                        <div class="remove-btn" onclick="removeFromSequence(${index})">×</div>
-                    </div>
-                `;
-            }).join('');
-            
-            // Add drag and drop event listeners
-            document.querySelectorAll('.sequence-item').forEach(item => {
-                item.addEventListener('dragstart', handleDragStart);
-                item.addEventListener('dragend', handleDragEnd);
-                item.addEventListener('dragover', handleDragOver);
-                item.addEventListener('drop', handleDrop);
-            });
-        }
-        
-        function handleDragStart(e) {
-            draggedItem = parseInt(e.target.closest('.sequence-item').dataset.index);
-            e.target.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-        }
-        
-        function handleDragEnd(e) {
-            e.target.classList.remove('dragging');
-            document.getElementById('sequenceGrid').classList.remove('drag-over');
-        }
-        
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            
-            const sequenceGrid = document.getElementById('sequenceGrid');
-            sequenceGrid.classList.add('drag-over');
-        }
-        
-        function handleDragLeave(e) {
-            if (e.target === document.getElementById('sequenceGrid')) {
-                e.target.classList.remove('drag-over');
-            }
-        }
-        
-        function handleDrop(e) {
-            e.preventDefault();
-            document.getElementById('sequenceGrid').classList.remove('drag-over');
-            
-            const dropTarget = e.target.closest('.sequence-item');
-            if (!dropTarget || draggedItem === null) return;
-            
-            const dropIndex = parseInt(dropTarget.dataset.index);
-            
-            if (draggedItem !== dropIndex) {
-                const draggedImage = selectedSequence[draggedItem];
-                selectedSequence.splice(draggedItem, 1);
+                isSelected(imageId) {
+                    return this.selectedImages.some(img => img.id === imageId);
+                },
                 
-                const newIndex = draggedItem < dropIndex ? dropIndex - 1 : dropIndex;
-                selectedSequence.splice(newIndex, 0, draggedImage);
+                removeSelection(imageId) {
+                    const index = this.selectedImages.findIndex(img => img.id === imageId);
+                    if (index > -1) {
+                        this.selectedImages.splice(index, 1);
+                    }
+                },
                 
-                renderSequence();
-                updateSelectionIndicators();
-                updateJSON();
-            }
-            
-            draggedItem = null;
-        }
-        
-        function removeFromSequence(index) {
-            event.stopPropagation();
-            selectedSequence.splice(index, 1);
-            renderSequence();
-            updateSelectionIndicators();
-            updateStats();
-            updateJSON();
-        }
-        
-        function clearSelection() {
-            selectedSequence = [];
-            renderSequence();
-            updateSelectionIndicators();
-            updateStats();
-            updateJSON();
-        }
-        
-        function updateStats() {
-            document.getElementById('totalCount').textContent = availableImages.length;
-            document.getElementById('selectedCount').textContent = selectedSequence.length;
-            document.getElementById('duration').textContent = `${selectedSequence.length * 3}s`;
-            document.getElementById('exportBtn').disabled = selectedSequence.length === 0;
-        }
-        
-        function updateJSON() {
-            const output = selectedSequence.map((img, index) => ({
-                position: index + 1,
-                image_id: img.id,
-                image_url: img.image_url || img.image_preview || img.direct_url,
-                sort_order: index + 1,
-                is_selected: true
-            }));
-            
-            document.getElementById('jsonOutput').textContent = JSON.stringify(output, null, 2);
-        }
-        
-        function copyJSON() {
-            const json = document.getElementById('jsonOutput').textContent;
-            navigator.clipboard.writeText(json).then(() => {
-                alert('JSON copied to clipboard!');
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-                alert('Failed to copy to clipboard');
-            });
-        }
-        
-        async function exportToBaserow() {
-            const button = event.target;
-            button.disabled = true;
-            button.textContent = 'Updating...';
-            hideError();
-            
-            try {
-                const allUpdates = availableImages.map(img => {
-                    const selectedIndex = selectedSequence.findIndex(selected => selected.id === img.id);
-                    return {
-                        image_id: img.id,
-                        is_selected: selectedIndex !== -1,
-                        sort_order: selectedIndex !== -1 ? selectedIndex + 1 : null
+                clearSelection() {
+                    this.selectedImages = [];
+                },
+                
+                exportSelection() {
+                    const exportData = {
+                        selected_images: this.selectedImages.map(img => ({
+                            id: img.id,
+                            row_id: img.row_id,
+                            image_url: img.image_url,
+                            refined_prompt: img.refined_prompt,
+                            slot_number: img.slot_number
+                        })),
+                        export_timestamp: new Date().toISOString(),
+                        total_selected: this.selectedImages.length
                     };
-                });
-                
-                const response = await fetch(CONFIG.updateSelectionsUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        selections: allUpdates,
-                        task_id: CONFIG.currentTaskId
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    
+                    // Download as JSON
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                        type: 'application/json'
+                    });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `selected-images-${Date.now()}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    console.log('Exported selection:', exportData);
                 }
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    button.textContent = '✓ Updated Successfully';
-                    setTimeout(() => {
-                        button.textContent = 'Export to Baserow';
-                    }, 2000);
-                } else {
-                    throw new Error(result.message || 'Update failed');
-                }
-            } catch (error) {
-                console.error('Error updating Baserow:', error);
-                showError(`Failed to update Baserow: ${error.message}`);
-                button.textContent = 'Export to Baserow';
-            } finally {
-                button.disabled = false;
+            },
+            
+            mounted() {
+                // Auto-fetch images on load
+                this.fetchImages();
             }
-        }
-        
-        // Initialize
-        updateStats();
-        
-        // Add event listener for drag and drop on the sequence container
-        document.addEventListener('DOMContentLoaded', () => {
-            const sequenceGrid = document.getElementById('sequenceGrid');
-            sequenceGrid.addEventListener('dragover', handleDragOver);
-            sequenceGrid.addEventListener('drop', handleDrop);
-            sequenceGrid.addEventListener('dragleave', handleDragLeave);
-        });
+        }).mount('#app');
     </script>
 </body>
 </html>
