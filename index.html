@@ -381,8 +381,8 @@
                 {{ error }}
             </div>
 
-            <div v-if="imageRows.length > 0" class="stats">
-                Showing {{ totalImages }} images in {{ imageRows.length }} sets
+            <div v-if="images.length > 0" class="stats">
+                Showing {{ images.length }} images in {{ imageRows.length }} sets
             </div>
 
             <div v-if="imageRows.length > 0" class="image-grid">
@@ -458,25 +458,23 @@
                     // Group images by row_id (4-image sets)
                     const grouped = {};
                     this.images.forEach(image => {
-                        if (!grouped[image.row_id]) {
-                            grouped[image.row_id] = {
-                                id: image.row_id,
-                                prompt: image.refined_prompt,
+                        const rowId = image.row_id || 'unknown';
+                        if (!grouped[rowId]) {
+                            grouped[rowId] = {
+                                id: rowId,
+                                prompt: image.refined_prompt || `Row ${rowId}`,
                                 images: []
                             };
                         }
-                        grouped[image.row_id].images.push(image);
+                        grouped[rowId].images.push(image);
                     });
                     
                     // Sort images within each row by slot_number
                     Object.values(grouped).forEach(row => {
-                        row.images.sort((a, b) => a.slot_number - b.slot_number);
+                        row.images.sort((a, b) => (a.slot_number || 0) - (b.slot_number || 0));
                     });
                     
                     return Object.values(grouped).sort((a, b) => a.id - b.id);
-                },
-                totalImages() {
-                    return this.images.length;
                 }
             },
             methods: {
@@ -580,12 +578,18 @@
                 },
                 
                 getImageUrl(image) {
+                    // Debug logging
+                    console.log('Getting URL for image:', image);
+                    
                     // Try multiple possible URL properties in order of preference
-                    return image.image_preview || 
-                           image.image_url || 
-                           image.direct_url || 
-                           image.url ||
-                           'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em">Image not found</text></svg>';
+                    const url = image.image_preview || 
+                               image.image_url || 
+                               image.direct_url || 
+                               image.url;
+                    
+                    console.log('Selected URL:', url);
+                    
+                    return url || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em">Image not found</text></svg>';
                 },
                 
                 handleImageError(event, image) {
