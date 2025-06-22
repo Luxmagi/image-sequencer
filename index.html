@@ -391,27 +391,35 @@
             errorEl.style.display = 'none';
         }
         
-        function renderImageGrid() {
-            const grid = document.getElementById('imageGrid');
-            
-            if (availableImages.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No images available</div>';
-                return;
-            }
-            
-            grid.innerHTML = availableImages.map(img => `
-                <div class="image-card" onclick="toggleImageSelection('${img.id}')" data-id="${img.id}">
-                    <img src="${img.image_preview || img.image_url}" alt="Image ${img.id}" onerror="this.src='https://via.placeholder.com/400x300?text=Image+${img.id}'">
-                    <div class="selection-indicator"></div>
-                    <div class="image-info">
-                        <div>Image #${img.id}</div>
-                        <div>${img.refined_prompt || 'No prompt'}</div>
-                    </div>
+       function renderImageGrid() {
+    const grid = document.getElementById('imageGrid');
+    
+    if (availableImages.length === 0) {
+        grid.innerHTML = '<div class="empty-state">No images available</div>';
+        return;
+    }
+    
+    grid.innerHTML = availableImages.map(img => {
+        // Try multiple URL options in order of preference
+        const imageUrl = img.image_preview || img.image_url || img.direct_url;
+        
+        return `
+            <div class="image-card" onclick="toggleImageSelection('${img.id}')" data-id="${img.id}">
+                <img src="${imageUrl}" 
+                     alt="Image ${img.id}" 
+                     onerror="this.onerror=null; this.src='${img.direct_url || img.image_url}'; console.log('Fallback URL used for ${img.id}');"
+                     onload="console.log('Successfully loaded image ${img.id} from:', this.src);">
+                <div class="selection-indicator"></div>
+                <div class="image-info">
+                    <div>Image #${img.id}</div>
+                    <div>${img.refined_prompt || 'No prompt'}</div>
                 </div>
-            `).join('');
-            
-            updateSelectionIndicators();
-        }
+            </div>
+        `;
+    }).join('');
+    
+    updateSelectionIndicators();
+}
         
         function toggleImageSelection(imageId) {
             const image = availableImages.find(img => img.id === imageId);
