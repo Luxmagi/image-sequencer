@@ -257,6 +257,19 @@
             margin-bottom: 20px;
             display: none;
         }
+
+        .image-card.error img {
+            background: #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-card.error img:after {
+            content: "Failed to load";
+            color: #888;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -302,10 +315,10 @@
     </div>
 
     <script>
-        // Configuration
+        // Configuration - UPDATE THESE URLS TO YOUR ACTUAL N8N WEBHOOK URLS
         const CONFIG = {
-            fetchImagesUrl: 'https://diseases-invitations-sends-married.trycloudflare.com/webhook/image-sequencer-api',
-            updateSelectionsUrl: 'https://diseases-invitations-sends-married.trycloudflare.com/webhook/update-image-selections',
+            fetchImagesUrl: 'YOUR_N8N_WEBHOOK_URL_HERE', // Replace with your actual N8N webhook URL
+            updateSelectionsUrl: 'YOUR_UPDATE_WEBHOOK_URL_HERE', // Replace with your update webhook URL
             currentTaskId: null
         };
 
@@ -332,29 +345,14 @@
                 });
 
                 console.log('Response status:', response.status);
-                console.log('Response headers:', response.headers);
-
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                // Get the raw text first to debug
-                const rawText = await response.text();
-                console.log('Raw response text:', rawText);
+                const data = await response.json();
+                console.log('Received data:', data);
 
-                // Try to parse as JSON
-                let data;
-                try {
-                    data = JSON.parse(rawText);
-                } catch (parseError) {
-                    console.error('JSON parse error:', parseError);
-                    console.error('Raw text that failed to parse:', rawText);
-                    throw new Error('Invalid JSON response');
-                }
-
-                console.log('Parsed data:', data);
-
-                // Check if data has images array
                 if (data && data.images && Array.isArray(data.images)) {
                     console.log(`Found ${data.images.length} images`);
                     availableImages = data.images;
@@ -391,35 +389,35 @@
             errorEl.style.display = 'none';
         }
         
-       function renderImageGrid() {
-    const grid = document.getElementById('imageGrid');
-    
-    if (availableImages.length === 0) {
-        grid.innerHTML = '<div class="empty-state">No images available</div>';
-        return;
-    }
-    
-    grid.innerHTML = availableImages.map(img => {
-        // Try multiple URL options in order of preference
-        const imageUrl = img.image_preview || img.image_url || img.direct_url;
-        
-        return `
-            <div class="image-card" onclick="toggleImageSelection('${img.id}')" data-id="${img.id}">
-                <img src="${imageUrl}" 
-                     alt="Image ${img.id}" 
-                     onerror="this.onerror=null; this.src='${img.direct_url || img.image_url}'; console.log('Fallback URL used for ${img.id}');"
-                     onload="console.log('Successfully loaded image ${img.id} from:', this.src);">
-                <div class="selection-indicator"></div>
-                <div class="image-info">
-                    <div>Image #${img.id}</div>
-                    <div>${img.refined_prompt || 'No prompt'}</div>
-                </div>
-            </div>
-        `;
-    }).join('');
-    
-    updateSelectionIndicators();
-}
+        function renderImageGrid() {
+            const grid = document.getElementById('imageGrid');
+            
+            if (availableImages.length === 0) {
+                grid.innerHTML = '<div class="empty-state">No images available</div>';
+                return;
+            }
+            
+            grid.innerHTML = availableImages.map(img => {
+                // Try multiple URL options in order of preference
+                const imageUrl = img.image_url || img.image_preview || img.direct_url;
+                
+                return `
+                    <div class="image-card" onclick="toggleImageSelection('${img.id}')" data-id="${img.id}">
+                        <img src="${imageUrl}" 
+                             alt="Image ${img.id}" 
+                             onerror="this.parentElement.classList.add('error'); console.error('Failed to load image ${img.id}:', this.src);"
+                             onload="console.log('Successfully loaded image ${img.id}');">
+                        <div class="selection-indicator"></div>
+                        <div class="image-info">
+                            <div>Image #${img.id}</div>
+                            <div>${img.refined_prompt || 'No prompt'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            updateSelectionIndicators();
+        }
         
         function toggleImageSelection(imageId) {
             const image = availableImages.find(img => img.id === imageId);
@@ -460,13 +458,17 @@
                 return;
             }
             
-            grid.innerHTML = selectedSequence.map((img, index) => `
-                <div class="sequence-item" draggable="true" data-index="${index}">
-                    <img src="${img.image_preview || img.image_url || img.direct_url}" alt="Image ${img.id}" onerror="this.onerror=null; this.src='${img.direct_url || img.image_url}';">
-                    <div class="sequence-number">${index + 1}</div>
-                    <div class="remove-btn" onclick="removeFromSequence(${index})">×</div>
-                </div>
-            `).join('');
+            grid.innerHTML = selectedSequence.map((img, index) => {
+                const imageUrl = img.image_url || img.image_preview || img.direct_url;
+                return `
+                    <div class="sequence-item" draggable="true" data-index="${index}">
+                        <img src="${imageUrl}" alt="Image ${img.id}" 
+                             onerror="console.error('Failed to load sequence image ${img.id}');">
+                        <div class="sequence-number">${index + 1}</div>
+                        <div class="remove-btn" onclick="removeFromSequence(${index})">×</div>
+                    </div>
+                `;
+            }).join('');
             
             // Add drag and drop event listeners
             document.querySelectorAll('.sequence-item').forEach(item => {
@@ -554,7 +556,7 @@
             const output = selectedSequence.map((img, index) => ({
                 position: index + 1,
                 image_id: img.id,
-                image_url: img.image_url,
+                image_url: img.image_url || img.image_preview || img.direct_url,
                 sort_order: index + 1,
                 is_selected: true
             }));
@@ -579,7 +581,6 @@
             hideError();
             
             try {
-                // Prepare updates for all images
                 const allUpdates = availableImages.map(img => {
                     const selectedIndex = selectedSequence.findIndex(selected => selected.id === img.id);
                     return {
