@@ -430,36 +430,69 @@
                     try {
                         console.log('Fetching from:', this.webhookUrl);
                         
-                        // Use a CORS proxy to avoid CORS issues
-                        const corsProxy = 'https://corsproxy.io/?';
-                        const proxiedUrl = corsProxy + encodeURIComponent(this.webhookUrl);
+                        // Try multiple CORS proxy options
+                        const corsProxies = [
+                            '', // Direct first
+                            'https://api.allorigins.win/get?url=',
+                            'https://corsproxy.io/?'
+                        ];
                         
-                        console.log('Using CORS proxy:', proxiedUrl);
-                        
-                        const response = await fetch(proxiedUrl, {
-                            method: 'GET',
-                            headers: {
-                                'Accept': 'application/json',
+                        for (let i = 0; i < corsProxies.length; i++) {
+                            try {
+                                const proxy = corsProxies[i];
+                                const url = proxy ? proxy + encodeURIComponent(this.webhookUrl) : this.webhookUrl;
+                                
+                                console.log(`Attempt ${i + 1}: ${proxy ? 'Using proxy' : 'Direct'} - ${url}`);
+                                
+                                const response = await fetch(url, {
+                                    method: 'GET',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                    }
+                                });
+                                
+                                if (!response.ok) {
+                                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                                }
+                                
+                                let data = await response.json();
+                                
+                                // Handle allorigins proxy response format
+                                if (proxy.includes('allorigins') && data.contents) {
+                                    data = JSON.parse(data.contents);
+                                }
+                                
+                                console.log('Received data:', data);
+                                
+                                // Handle both array response and object with images property
+                                this.images = Array.isArray(data) ? data : (data.images || []);
+                                
+                                if (this.images.length === 0) {
+                                    this.error = 'No images found in the response';
+                                } else {
+                                    this.error = null; // Clear any previous errors
+                                }
+                                return; // Success, exit the loop
+                                
+                            } catch (proxyError) {
+                                console.error(`Proxy attempt ${i + 1} failed:`, proxyError);
+                                if (i === corsProxies.length - 1) {
+                                    throw proxyError; // Last attempt failed
+                                }
+                                continue; // Try next proxy
                             }
-                        });
-                        
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        
-                        const data = await response.json();
-                        console.log('Received data:', data);
-                        
-                        // Handle both array response and object with images property
-                        this.images = Array.isArray(data) ? data : (data.images || []);
-                        
-                        if (this.images.length === 0) {
-                            this.error = 'No images found in the response';
                         }
                         
                     } catch (err) {
-                        console.error('Fetch error:', err);
-                        this.error = `Failed to fetch images: ${err.message}. Try checking if your N8n workflow is active and the webhook URL is correct.`;
+                        console.error('All fetch attempts failed:', err);
+                        
+                        if (err.message.includes('403')) {
+                            this.error = 'HTTP 403 Forbidden: Your N8n workflow might not be active, or there could be authentication/permission issues. Please check that your workflow is running and the webhook is accessible.';
+                        } else if (err.message.includes('404')) {
+                            this.error = 'HTTP 404 Not Found: The webhook URL might be incorrect. Please verify your N8n webhook path.';
+                        } else {
+                            this.error = `Failed to fetch images: ${err.message}`;
+                        }
                     } finally {
                         this.loading = false;
                     }
