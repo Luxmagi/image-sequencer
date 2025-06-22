@@ -122,6 +122,7 @@
             justify-content: center;
             font-weight: bold;
             font-size: 12px;
+            color: white;
         }
         
         .image-card.selected .selection-indicator {
@@ -247,12 +248,23 @@
             border: 2px dashed #0066ff;
             border-radius: 4px;
         }
+        
+        .error-message {
+            background: #ff3333;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Image Selection & Sequencing Tool</h1>
         <p class="subtitle">Select images from the gallery and drag to reorder them in the sequence</p>
+        
+        <div class="error-message" id="errorMessage"></div>
         
         <div class="controls">
             <button onclick="loadImagesFromBaserow()">Load Images from Baserow</button>
@@ -290,80 +302,102 @@
     </div>
 
     <script>
-        // ADD THIS CONFIGURATION SECTION
-const CONFIG = {
-    fetchImagesUrl: 'http://137.184.39.211:5678/webhook-test/image-sequencer-api/',
-    updateSelectionsUrl: 'http://137.184.39.211:5678/webhook-test/update-image-selections',
-    currentTaskId: null
-};
-async function loadImagesFromBaserow() {
-    const button = event.target;
-    button.disabled = true;
-    button.textContent = 'Loading...';
-    
-    try {
-        const response = await fetch(CONFIG.fetchImagesUrl, {
-    headers: {
-        'ngrok-skip-browser-warning': 'true'
-    }
-});
-        const data = await response.json();
-        
-        if (data.success) {
-            availableImages = data.images;
-            
-            // Pre-select images that were previously selected
-            selectedSequence = data.images
-                .filter(img => img.is_selected)
-                .sort((a, b) => (a.sort_order || 999) - (b.sort_order || 999));
-            
-            renderImageGrid();
-            renderSequence();
-            updateSelectionIndicators();
-            updateStats();
-            updateJSON();
-            
-            button.textContent = `Loaded ${data.count} images`;
-        } else {
-            throw new Error(data.message || 'Failed to load images');
-        }
-    } catch (error) {
-        console.error('Error loading from Baserow:', error);
-        alert('Failed to load images. Please check your connection and try again.');
-        button.textContent = 'Load Images from Baserow';
-    } finally {
-        button.disabled = false;
-    }
-}
+        // Configuration - Update these URLs with your actual endpoints
+        const CONFIG = {
+            // IMPORTANT: Use HTTPS proxy or ensure your server has SSL
+            // For testing, you can use the webhook-test URL
+            fetchImagesUrl: 'http://137.184.39.211:5678/webhook/image-sequencer-api',
+            updateSelectionsUrl: 'http://137.184.39.211:5678/webhook/update-image-selections',
+            currentTaskId: null
+        };
 
         let availableImages = [];
         let selectedSequence = [];
         let draggedItem = null;
-        
-        function loadSampleImages() {
-            // Simulate loading images from Baserow API
-            availableImages = Array.from({length: 20}, (_, i) => ({
-                id: i + 1,
-                url: `https://picsum.photos/400/300?random=${i + 1}`,
-                prompt: `Generated image ${i + 1} with varied composition and lighting`,
-                thumbnail: `https://picsum.photos/400/300?random=${i + 1}`
-            }));
+
+        async function loadImagesFromBaserow() {
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Loading...';
+            hideError();
             
-            renderImageGrid();
-            updateStats();
+            try {
+                console.log('Fetching from:', CONFIG.fetchImagesUrl);
+                
+                const response = await fetch(CONFIG.fetchImagesUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const contentType = response.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    throw new Error("Response is not JSON");
+                }
+                
+                const data = await response.json();
+                console.log('Received data:', data);
+                
+                if (data.success && data.images) {
+                    availableImages = data.images;
+                    
+                    // Pre-select images that were previously selected
+                    selectedSequence = data.images
+                        .filter(img => img.is_selected)
+                        .sort((a, b) => (a.sort_order || 999) - (b.sort_order || 999));
+                    
+                    renderImageGrid();
+                    renderSequence();
+                    updateSelectionIndicators();
+                    updateStats();
+                    updateJSON();
+                    
+                    button.textContent = `Loaded ${data.count} images`;
+                    setTimeout(() => {
+                        button.textContent = 'Load Images from Baserow';
+                    }, 2000);
+                } else {
+                    throw new Error(data.message || 'Invalid response format');
+                }
+            } catch (error) {
+                console.error('Error loading from Baserow:', error);
+                showError(`Failed to load images: ${error.message}`);
+                button.textContent = 'Load Images from Baserow';
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+
+        function hideError() {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.style.display = 'none';
         }
         
         function renderImageGrid() {
             const grid = document.getElementById('imageGrid');
             
             if (availableImages.length === 0) {
-                grid.innerHTML = '<div class="empty-state">Click "Load Sample Images" to begin</div>';
+                grid.innerHTML = '<div class="empty-state">No images available</div>';
                 return;
             }
             
             grid.innerHTML = availableImages.map(img => `
                 <div class="image-card" onclick="toggleImageSelection(${img.id})" data-id="${img.id}">
-                    <img src="${img.thumbnail}" alt="Image ${img.id}">
+                    <img src="${img.thumbnail || img.url}" alt="Image ${img.id}" onerror="this.src='https://via.placeholder.com/400x300?text=Image+${img.id}'">
                     <div class="selection-indicator"></div>
                     <div class="image-info">Image #${img.id}</div>
                 </div>
@@ -377,10 +411,8 @@ async function loadImagesFromBaserow() {
             const existingIndex = selectedSequence.findIndex(item => item.id === imageId);
             
             if (existingIndex !== -1) {
-                // Remove from sequence
                 selectedSequence.splice(existingIndex, 1);
             } else {
-                // Add to sequence
                 selectedSequence.push({...image});
             }
             
@@ -415,7 +447,7 @@ async function loadImagesFromBaserow() {
             
             grid.innerHTML = selectedSequence.map((img, index) => `
                 <div class="sequence-item" draggable="true" data-index="${index}">
-                    <img src="${img.thumbnail}" alt="Image ${img.id}">
+                    <img src="${img.thumbnail || img.url}" alt="Image ${img.id}" onerror="this.src='https://via.placeholder.com/400x300?text=Image+${img.id}'">
                     <div class="sequence-number">${index + 1}</div>
                     <div class="remove-btn" onclick="removeFromSequence(${index})">×</div>
                 </div>
@@ -428,12 +460,6 @@ async function loadImagesFromBaserow() {
                 item.addEventListener('dragover', handleDragOver);
                 item.addEventListener('drop', handleDrop);
             });
-            
-            // Add drag events to the container for better UX
-            const sequenceGrid = document.getElementById('sequenceGrid');
-            sequenceGrid.addEventListener('dragover', handleDragOver);
-            sequenceGrid.addEventListener('drop', handleDrop);
-            sequenceGrid.addEventListener('dragleave', handleDragLeave);
         }
         
         function handleDragStart(e) {
@@ -453,36 +479,12 @@ async function loadImagesFromBaserow() {
             
             const sequenceGrid = document.getElementById('sequenceGrid');
             sequenceGrid.classList.add('drag-over');
-            
-            const afterElement = getDragAfterElement(sequenceGrid, e.clientX);
-            const dragging = document.querySelector('.dragging');
-            
-            if (afterElement == null) {
-                sequenceGrid.appendChild(dragging);
-            } else {
-                sequenceGrid.insertBefore(dragging, afterElement);
-            }
         }
         
         function handleDragLeave(e) {
             if (e.target === document.getElementById('sequenceGrid')) {
                 e.target.classList.remove('drag-over');
             }
-        }
-        
-        function getDragAfterElement(container, x) {
-            const draggableElements = [...container.querySelectorAll('.sequence-item:not(.dragging)')];
-            
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = x - box.left - box.width / 2;
-                
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
-            }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
         
         function handleDrop(e) {
@@ -547,23 +549,75 @@ async function loadImagesFromBaserow() {
         
         function copyJSON() {
             const json = document.getElementById('jsonOutput').textContent;
-            navigator.clipboard.writeText(json);
-            alert('JSON copied to clipboard!');
+            navigator.clipboard.writeText(json).then(() => {
+                alert('JSON copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy to clipboard');
+            });
         }
         
-        function exportToBaserow() {
-            // This would make API calls to update Baserow
-            const updates = selectedSequence.map((img, index) => ({
-                id: img.id,
-                is_selected: true,
-                sort_order: index + 1
-            }));
+        async function exportToBaserow() {
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Updating...';
+            hideError();
             
-            alert('Export functionality would update Baserow via API:\n\n' + JSON.stringify(updates, null, 2));
+            try {
+                // Prepare updates for all images
+                const allUpdates = availableImages.map(img => {
+                    const selectedIndex = selectedSequence.findIndex(selected => selected.id === img.id);
+                    return {
+                        image_id: img.id,
+                        is_selected: selectedIndex !== -1,
+                        sort_order: selectedIndex !== -1 ? selectedIndex + 1 : null
+                    };
+                });
+                
+                const response = await fetch(CONFIG.updateSelectionsUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        selections: allUpdates,
+                        task_id: CONFIG.currentTaskId
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    button.textContent = '✓ Updated Successfully';
+                    setTimeout(() => {
+                        button.textContent = 'Export to Baserow';
+                    }, 2000);
+                } else {
+                    throw new Error(result.message || 'Update failed');
+                }
+            } catch (error) {
+                console.error('Error updating Baserow:', error);
+                showError(`Failed to update Baserow: ${error.message}`);
+                button.textContent = 'Export to Baserow';
+            } finally {
+                button.disabled = false;
+            }
         }
         
         // Initialize
         updateStats();
+        
+        // Add event listener for drag and drop on the sequence container
+        document.addEventListener('DOMContentLoaded', () => {
+            const sequenceGrid = document.getElementById('sequenceGrid');
+            sequenceGrid.addEventListener('dragover', handleDragOver);
+            sequenceGrid.addEventListener('drop', handleDrop);
+            sequenceGrid.addEventListener('dragleave', handleDragLeave);
+        });
     </script>
 </body>
 </html>
