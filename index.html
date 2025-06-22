@@ -304,12 +304,12 @@
     <script>
         // Configuration - Update these URLs with your actual endpoints
         const CONFIG = {
-            // IMPORTANT: Use HTTPS proxy or ensure your server has SSL
-            // For testing, you can use the webhook-test URL
-            fetchImagesUrl: 'http://137.184.39.211:5678/webhook/image-sequencer-api',
-            updateSelectionsUrl: 'http://137.184.39.211:5678/webhook/update-image-selections',
-            currentTaskId: null
-        };
+    // IMPORTANT: Use HTTPS proxy or ensure your server has SSL
+    // For testing, you can use the webhook-test URL
+    fetchImagesUrl: 'https://trinity-pond-hostel-floppy.trycloudflare.com/webhook/image-sequencer-api',
+    updateSelectionsUrl: 'https://trinity-pond-hostel-floppy.trycloudflare.com/webhook/update-image-selections',
+    currentTaskId: null
+};
 
         let availableImages = [];
         let selectedSequence = [];
